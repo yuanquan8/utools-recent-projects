@@ -261,29 +261,29 @@ export class Vscode1640ApplicationImpl extends ApplicationCacheConfigAndExecutor
     }
 
     async generateCacheProjectItems(context: Context): Promise<Array<VscodeProjectItemImpl>> {
+        try {
+            let buffer = await readFile(join(dirname(this.config), 'storage.json'))
+            let entries = parseRecentEntriesFromStorageJson(JSON.parse(buffer.toString()))
+            let items = await parseEntries(entries, context, this.openInNew, this.isWindows, this.icon, this.executor, this.sortByAccessTime)
+            if (!isEmpty(items)) {
+                return items
+            }
+        } catch (error: any) {
+            if (error?.code !== 'ENOENT') {
+                throw error
+            }
+        }
+
         // language=SQLite
         let results = await queryFromSqlite(this.config, 'select value as result from ItemTable where key = \'history.recentlyOpenedPathsList\'')
         if (!isEmpty(results)) {
             let row = results[0]
             let source = row['result'] as string
             if (!isEmpty(source)) {
-                let items = await parseEntries(JSON.parse(source)['entries'], context, this.openInNew, this.isWindows, this.icon, this.executor, this.sortByAccessTime)
-                if (!isEmpty(items)) {
-                    return items
-                }
+                return await parseEntries(JSON.parse(source)['entries'], context, this.openInNew, this.isWindows, this.icon, this.executor, this.sortByAccessTime)
             }
         }
-
-        try {
-            let buffer = await readFile(join(dirname(this.config), 'storage.json'))
-            let entries = parseRecentEntriesFromStorageJson(JSON.parse(buffer.toString()))
-            return await parseEntries(entries, context, this.openInNew, this.isWindows, this.icon, this.executor, this.sortByAccessTime)
-        } catch (error: any) {
-            if (error?.code === 'ENOENT') {
-                return []
-            }
-            throw error
-        }
+        return []
     }
 
     override async isNew(): Promise<boolean> {
